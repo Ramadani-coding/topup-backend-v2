@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->text('description');
             $table->string('category');
-            $table->string('type');
+            $table->string('brand');
             $table->string('seller_name');
             $table->integer('seller_price');
             $table->integer('buyer_price');

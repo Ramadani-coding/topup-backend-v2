@@ -13,6 +13,8 @@ return new class extends Migration
     {
         Schema::create('invoice', function (Blueprint $table) {
             $table->id();
+            $table->string('invoice');
+            $table->date('date_generate');
             $table->timestamps();
         });
     }

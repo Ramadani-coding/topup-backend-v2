@@ -20,6 +20,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::post('/products/prepaid', [DigiflazzController::class, 'GetProductsPrepaid']);
+Route::post('/get/prepaid', [DigiflazzController::class, 'GetProductsPrepaid']);
 Route::get('/brands', [DigiflazzController::class, 'getBrands']);
-Route::get('/brand/{brand}', [DigiflazzController::class, 'getByBrand']);
+Route::get('/buy/{brand}', [DigiflazzController::class, 'getByBrand']);
+
+Route::post('/buy/topup', [DigiflazzController::class, 'topup']);
