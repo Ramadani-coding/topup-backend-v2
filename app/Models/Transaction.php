@@ -29,8 +29,8 @@ class Transaction extends Model
         return $this->belongsTo(Prepaid::class, 'sku', 'id');
     }
 
-    public function invoice()
+    public function invoiceData()
     {
-        return $this->hasOne(Invoice::class, 'id', 'invoice');
+        return $this->belongsTo(Invoice::class, 'invoice', 'id');
     }
 }

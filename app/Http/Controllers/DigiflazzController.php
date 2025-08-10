@@ -115,27 +115,101 @@ class DigiflazzController extends Controller
         ]);
     }
 
+    public function webhook(Request $request)
+    {
+        // Ambil data JSON dari Digiflazz
+        $payload = $request->all();
+
+        // Debug dulu supaya tahu bentuk datanya
+        Log::info('Webhook Digiflazz:', $payload);
+
+        // Contoh data yang biasanya dikirim:
+        // {
+        //   "ref_id": "INV123456",
+        //   "status": "Sukses",
+        //   "code": "00",
+        //   "buyer_sku_code": "PLN20",
+        //   "sn": "123456789",
+        //   "message": "Transaksi berhasil"
+        // }
+
+        // Pastikan `ref_id` ada di database kita
+        $trx = \App\Models\Transaction::where('ref_id', $payload['ref_id'])->first();
+
+        if ($trx) {
+            $trx->update([
+                'status' => strtolower($payload['status']), // sukses / gagal
+                'message' => $payload['message'] ?? null,
+                'sn' => $payload['sn'] ?? null
+            ]);
+        }
+
+        // Balas ke Digiflazz
+        return response()->json(['success' => true]);
+    }
+
+
 
 
     public function createDraftOrder(Request $request)
     {
         $ref_id = $this->getCode();
-
         $product = Prepaid::where('sku', $request->sku)->firstOrFail();
-
         $invoice = Invoice::where('invoice', $ref_id)->firstOrFail();
+        $order_id = 'INV-' . uniqid();
+
+        $products = Prepaid::where('sku', $request->sku)->firstOrFail();
+        $checkSku = preg_replace('/\d+/', '', $products->sku);
 
         $order = Transaction::create([
             'invoice'        => $invoice->id,
             'target_number'  => $request->customer_no,
             'sku'            => $product->id,
             'price'          => $product->buyer_price,
-            'status'         => 'pending_confirmation',
+            'status'         => 'pending',
             'payment_status' => 'unpaid',
-            'order_id'       => 'INV-' . uniqid(),
+            'order_id'       => $order_id,
         ]);
 
+        $trx = Transaction::with('invoiceData')->where('order_id', $order_id)->first();
+        $invoiceNumber = $trx->invoiceData->invoice;
 
+        $maxAttempts = 5;
+        $attempt = 0;
+        $status = 'Pending';
+
+        do {
+            $attempt++;
+
+            $topupResponse = Http::withHeaders($this->header)->post($this->url . '/transaction', [
+                "username"       => $this->user,
+                "buyer_sku_code" => $checkSku,
+                "customer_no"    => $request->customer_no,
+                "ref_id"         => $invoiceNumber,
+                "sign"           => md5($this->user . $this->key . $invoiceNumber)
+            ]);
+
+            $topupData = json_decode($topupResponse->body(), true);
+
+            if (!empty($topupData['data']['status'])) {
+                $status = $topupData['data']['status'];
+                if ($status !== 'Pending') {
+                    break;
+                }
+            }
+
+            sleep(2);
+        } while ($attempt < $maxAttempts);
+
+        $sn = $topupData['data']['sn'];
+        preg_match('/User ID (\d+) Zone (\d+)/', $sn, $match1);
+        preg_match('/Username ([^\/]+) \/ Region = (\w+)/', $sn, $match2);
+
+        $detailTarget = [
+            'User ID'  => $match1[1] ?? null,
+            'Server'   => $match1[2] ?? null,
+            'Nickname' => ($match2[1] ?? '') . ' - ' . ($match2[2] ?? ''),
+        ];
 
         \Midtrans\Config::$serverKey = env('MIDTRANS_SERVER_KEY');
         \Midtrans\Config::$isProduction = true;
@@ -165,13 +239,20 @@ class DigiflazzController extends Controller
         $snapTransaction = \Midtrans\Snap::createTransaction($params);
 
         return response()->json([
-            'order'   => $order,
+            'invoice' => $invoiceNumber,
+            'Detail Target' => $topupData['data']['sn'],
             'product' => [
                 'item' => $product->name,
                 'product' => $product->brand,
                 'price' => $product->buyer_price
             ],
-            'payment_url' => $snapTransaction->redirect_url
+            'order'   => [
+                'customer_no' => $order->target_number,
+                'status' => $order->status,
+                'payment_status' => $order->payment_status,
+                'order_id' => $order->order_id
+            ],
+            'payment_url' => $snapTransaction->redirect_url,
         ]);
     }
 }

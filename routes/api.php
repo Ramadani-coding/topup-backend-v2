@@ -29,6 +29,11 @@ Route::post('/buy/topup/draft', [DigiflazzController::class, 'createDraftOrder']
 Route::post('/buy/topup/confirm', [DigiflazzController::class, 'confirmOrder']);
 Route::post('/buy/topup', [DigiflazzController::class, 'createOrder']);
 
+Route::post('/history', [DigiflazzController::class, 'cekOrder']);
+
 
 Route::post('/midtrans/webhook', [MidtransController::class, 'handleWebhook'])
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
+
+Route::post('/digiflazz/webhook', [MidtransController::class, 'webhook'])
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
