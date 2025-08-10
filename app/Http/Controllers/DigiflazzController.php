@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Invoice;
 use App\Models\Prepaid;
+use App\Models\Transaction;
 use App\Services\DigiflazzService;
 use App\Traits\CodeGenerate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-
+use Midtrans\Notification;
+use Midtrans\Snap;
 
 class DigiflazzController extends Controller
 {
@@ -58,7 +62,6 @@ class DigiflazzController extends Controller
     public function getBrands()
     {
         $brands = Prepaid::select('brand')
-            ->where('category', 'Games')
             ->distinct()
             ->pluck('brand');
 
@@ -70,7 +73,7 @@ class DigiflazzController extends Controller
         $brandsFormatted = $brands->map(function ($brand) use ($brandImages) {
             return [
                 'label' => $brand,
-                'value' => $brand,
+                'link' => 'http://127.0.0.1:8000/api/buy/' . Str::slug($brand),
                 'image' => $brandImages[$brand] ?? asset('storage/brand-icons/default.png'),
             ];
         });
@@ -85,7 +88,6 @@ class DigiflazzController extends Controller
     {
         // Ambil semua brand yang unik
         $brands = Prepaid::select('brand')
-            ->where('category', 'Games')
             ->distinct()
             ->pluck('brand');
 
@@ -113,20 +115,63 @@ class DigiflazzController extends Controller
         ]);
     }
 
-    public function topup(Request $request)
+
+
+    public function createDraftOrder(Request $request)
     {
         $ref_id = $this->getCode();
 
-        $response = Http::withHeaders($this->header)->post($this->url . '/transaction', [
-            "username" => $this->user,
-            "buyer_sku_code" => $request->sku,
-            "customer_no" => $request->customer_no,
-            "ref_id" =>  $ref_id,
-            "sign" => md5($this->user . $this->key . $ref_id)
+        $product = Prepaid::where('sku', $request->sku)->firstOrFail();
+
+        $invoice = Invoice::where('invoice', $ref_id)->firstOrFail();
+
+        $order = Transaction::create([
+            'invoice'        => $invoice->id,
+            'target_number'  => $request->customer_no,
+            'sku'            => $product->id,
+            'price'          => $product->buyer_price,
+            'status'         => 'pending_confirmation',
+            'payment_status' => 'unpaid',
+            'order_id'       => 'INV-' . uniqid(),
         ]);
 
-        $data = json_decode($response->body(), true);
 
-        return response()->json($data);
+
+        \Midtrans\Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+        \Midtrans\Config::$isProduction = true;
+        \Midtrans\Config::$isSanitized = true;
+        \Midtrans\Config::$is3ds = true;
+
+        $params = [
+            'transaction_details' => [
+                'order_id'     => $order->order_id,
+                'gross_amount' => $order->price,
+            ],
+            'customer_details' => [
+                'first_name' => auth()->user()->name ?? 'Guest',
+                'email'      => auth()->user()->email ?? 'noemail@example.com',
+            ],
+            'item_details' => [
+                [
+                    'id'       => $product->sku,
+                    'price'    => $product->buyer_price,
+                    'quantity' => 1,
+                    'name'     => $product->name,
+                ],
+            ]
+        ];
+
+        // $snapToken = Snap::getSnapToken($params);
+        $snapTransaction = \Midtrans\Snap::createTransaction($params);
+
+        return response()->json([
+            'order'   => $order,
+            'product' => [
+                'item' => $product->name,
+                'product' => $product->brand,
+                'price' => $product->buyer_price
+            ],
+            'payment_url' => $snapTransaction->redirect_url
+        ]);
     }
 }

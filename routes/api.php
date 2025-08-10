@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DigiflazzController;
+use App\Http\Controllers\MidtransController;
 use App\Services\DigiflazzService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -24,4 +25,10 @@ Route::post('/get/prepaid', [DigiflazzController::class, 'GetProductsPrepaid']);
 Route::get('/brands', [DigiflazzController::class, 'getBrands']);
 Route::get('/buy/{brand}', [DigiflazzController::class, 'getByBrand']);
 
-Route::post('/buy/topup', [DigiflazzController::class, 'topup']);
+Route::post('/buy/topup/draft', [DigiflazzController::class, 'createDraftOrder']);
+Route::post('/buy/topup/confirm', [DigiflazzController::class, 'confirmOrder']);
+Route::post('/buy/topup', [DigiflazzController::class, 'createOrder']);
+
+
+Route::post('/midtrans/webhook', [MidtransController::class, 'handleWebhook'])
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);

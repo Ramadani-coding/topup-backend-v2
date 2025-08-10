@@ -69,4 +69,14 @@ class Prepaid extends Model
 
         return count($insertData);
     }
+
+    public function prepaid()
+    {
+        return $this->belongsTo(Prepaid::class, 'sku', 'sku');
+    }
+
+    public function invoice()
+    {
+        return $this->hasOne(Invoice::class, 'id', 'invoice');
+    }
 }
