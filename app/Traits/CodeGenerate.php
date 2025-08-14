@@ -11,7 +11,7 @@ trait CodeGenerate
     public function getCode()
     {
         $q = DB::table('invoice')->select(DB::raw('MAX(RIGHT(invoice,9)) as kd_max'));
-        $prx = 'INV-BL-' . date('y') . '-' . date('m') . '-';
+        $prx = 'INV-BL-' . uniqid() . '-';
         if ($q->count() > 0) {
             foreach ($q->get() as $k) {
                 $tmp = ((int)$k->kd_max) + 1;

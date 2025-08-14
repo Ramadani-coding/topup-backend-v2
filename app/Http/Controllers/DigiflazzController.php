@@ -115,46 +115,13 @@ class DigiflazzController extends Controller
         ]);
     }
 
-    public function webhook(Request $request)
-    {
-        // Ambil data JSON dari Digiflazz
-        $payload = $request->all();
-
-        // Debug dulu supaya tahu bentuk datanya
-        Log::info('Webhook Digiflazz:', $payload);
-
-        // Contoh data yang biasanya dikirim:
-        // {
-        //   "ref_id": "INV123456",
-        //   "status": "Sukses",
-        //   "code": "00",
-        //   "buyer_sku_code": "PLN20",
-        //   "sn": "123456789",
-        //   "message": "Transaksi berhasil"
-        // }
-
-        // Pastikan `ref_id` ada di database kita
-        $trx = \App\Models\Transaction::where('ref_id', $payload['ref_id'])->first();
-
-        if ($trx) {
-            $trx->update([
-                'status' => strtolower($payload['status']), // sukses / gagal
-                'message' => $payload['message'] ?? null,
-                'sn' => $payload['sn'] ?? null
-            ]);
-        }
-
-        // Balas ke Digiflazz
-        return response()->json(['success' => true]);
-    }
-
-
-
-
-    public function createDraftOrder(Request $request)
+    public function createOrder(Request $request, string $brand)
     {
         $ref_id = $this->getCode();
-        $product = Prepaid::where('sku', $request->sku)->firstOrFail();
+
+        $brandNormalized = strtoupper(str_replace('-', ' ', trim($brand)));
+
+        $product = Prepaid::where('sku', $request->sku)->whereRaw('TRIM(UPPER(brand)) = ?', [trim($brandNormalized)])->first();
         $invoice = Invoice::where('invoice', $ref_id)->firstOrFail();
         $order_id = 'INV-' . uniqid();
 
@@ -212,7 +179,7 @@ class DigiflazzController extends Controller
         ];
 
         \Midtrans\Config::$serverKey = env('MIDTRANS_SERVER_KEY');
-        \Midtrans\Config::$isProduction = true;
+        \Midtrans\Config::$isProduction = false;
         \Midtrans\Config::$isSanitized = true;
         \Midtrans\Config::$is3ds = true;
 
