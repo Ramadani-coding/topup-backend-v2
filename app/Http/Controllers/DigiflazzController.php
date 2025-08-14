@@ -222,4 +222,34 @@ class DigiflazzController extends Controller
             'payment_url' => $snapTransaction->redirect_url,
         ]);
     }
+
+    public function cekStatusOrder(Request $request)
+    {
+        $refId = $request->invoice;
+
+        $trx = Transaction::with([
+                'invoiceData:id,invoice',
+                'prepaid:id,sku' // preload supaya langsung dapat buyer_sku_code
+            ])
+            ->whereHas('invoiceData', fn($q) => $q->where('invoice', $refId))
+            ->firstOrFail();
+
+        $invoice = $trx->invoiceData?->invoice;
+        $sku = $trx->prepaid?->sku;
+        $target_number = $trx->target_number;
+
+            $status = Http::withHeaders($this->header)->post($this->url . '/transaction', [
+                "username"       => $this->user,
+                "buyer_sku_code" => $sku,
+                "customer_no"    => $target_number,
+                "ref_id"         => $invoice,
+                "sign"           => md5($this->user . $this->key . $invoice)
+            ]);
+
+         $statusData = json_decode($status->body(), true);
+
+        return response()->json($statusData);
+
+
+    }
 }

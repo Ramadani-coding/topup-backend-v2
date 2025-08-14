@@ -24,7 +24,9 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::post('/get/prepaid', [DigiflazzController::class, 'GetProductsPrepaid']);
 Route::get('/brands', [DigiflazzController::class, 'getBrands']);
 Route::get('/buy/{brand}', [DigiflazzController::class, 'getByBrand']);
-Route::post('/buy/{brand}/topup', [DigiflazzController::class, 'createOrder'])->where('brand', '[A-Za-z0-9\-]+');;
+Route::post('/buy/{brand}/topup', [DigiflazzController::class, 'createOrder'])->where('brand', '[A-Za-z0-9\-]+');
+Route::post('/order/status', [DigiflazzController::class, 'cekStatusOrder']);
+
 
 Route::post('/midtrans/webhook', [MidtransController::class, 'handleWebhook'])
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
